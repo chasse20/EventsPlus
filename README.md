@@ -1,2 +1,2 @@
 # EventsPlus
-Unity Plugin in C#
+Unity Plugin in C# (Sample Code)
