@@ -1,2 +1,2 @@
 # EventsPlus
-Unity Plugin in C# (Sample Code)
+Unity Asset Store Plugin in C# (Sample Code)
