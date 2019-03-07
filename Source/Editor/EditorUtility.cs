@@ -11,13 +11,13 @@ namespace EventsPlus
 	//##########################
 	// Class Declaration
 	//##########################
-	/// <summary>Editor utility class for drawing custom fields and inspector display</summary>
+	/// <summary>Utility class for editor functions and display</summary>
 	public static class EditorUtility
 	{
 		//=======================
 		// Settings
 		//=======================
-		/// <summary>Selects the Events Plus Settings object from Resources/ folder, or will create one if it doesn't exist</summary>
+		/// <summary>Menu item that will select the <see cref="Settings"/> object from "Assets/EventsPlus/Resources" folder; this will create one if it doesn't exist</summary>
 		[MenuItem( "Events Plus/Settings", false )]
 		public static void OpenSettings()
 		{
@@ -35,308 +35,373 @@ namespace EventsPlus
 		}
 		
 		//=======================
-		// Property Target
+		// Serialized Property
 		//=======================
-		/// <summary>Retrieves the actual object reference belonging to a SerializedProperty</summary>
-		/// <param name="tProperty">SerializedProperty to seek through</param>
-		/// <returns>Object reference that is used by the <paramref name="tProperty"/>, null if not found</returns>
-		public static T GetNullablePropertyTarget<T>( SerializedProperty tProperty ) where T : class
+		/// <summary>Returns the target object instance that owns <paramref name="tProperty"/></summary>
+		/// <param name="tProperty">Property owned by the target instance</param>
+		/// <returns>Target instance</returns>
+		public static object GetTarget( this SerializedProperty tProperty )
 		{
 			if ( tProperty != null )
 			{
-				StringBuilder tempPath = new StringBuilder( tProperty.propertyPath );
-				tempPath.Replace( "Array.data", "" );
-				string[] tempPaths = tempPath.ToString().Split( '.' );
-				object tempTarget = tProperty.serializedObject.targetObject;
-				FieldInfo tempField = null;
+				object tempObject = tProperty.serializedObject.targetObject;
 				
+				string[] tempPaths = tProperty.propertyPath.Replace( "Array.data", "" ).Split( '.' );
 				int tempListLength = tempPaths.Length;
 				for ( int i = 0; i < tempListLength; ++i )
 				{
-					// Parse list element
-					if ( tempPaths[i][0] == '[' && tempTarget is IList )
+					if ( tempPaths[i][0] == '[' )
 					{
-						tempTarget = ( tempTarget as IList )[ Int32.Parse( tempPaths[i].Substring( 1, tempPaths[i].Length - 2 ) ) ];
+						int tempIndex = Int32.Parse( tempPaths[i].Substring( 1, tempPaths[i].IndexOf( ']' ) - 1 ) );
+						if ( tempIndex < ( tempObject as IList ).Count )
+						{
+							tempObject = ( tempObject as IList )[ tempIndex ];
+						}
+						else
+						{
+							return null;
+						}
 					}
-					// Parse object
 					else
 					{
-						tempField = tempTarget.GetType().GetField( tempPaths[i] );
-						tempTarget = tempField.GetValue( tempTarget );
+						tempObject = tempObject.GetType().GetField( tempPaths[i], Utility.InstanceFlags ).GetValue( tempObject );
 					}
 				}
 				
-				return tempTarget as T;
+				return tempObject;
+			}
+			
+			return null;
+		}
+		
+		/// <summary>Returns the <see cref="Publisher"/> instance that owns <paramref name="tProperty"/></summary>
+		/// <param name="tProperty">Property owned by the Publisher instance</param>
+		/// <returns>Publisher instance</returns>
+		public static Publisher GetPublisher( this SerializedProperty tProperty )
+		{
+			if ( tProperty != null )
+			{
+				object tempObject = tProperty.serializedObject.targetObject;
+				
+				string[] tempPaths = tProperty.propertyPath.Replace( "Array.data", "" ).Split( '.' );
+				int tempListLength = tempPaths.Length;
+				for ( int i = 0; i < tempListLength; ++i )
+				{
+					if ( tempPaths[i][0] == '[' )
+					{
+						int tempIndex = Int32.Parse( tempPaths[i].Substring( 1, tempPaths[i].IndexOf( ']' ) - 1 ) );
+						if ( tempIndex < ( tempObject as IList ).Count )
+						{
+							tempObject = ( tempObject as IList )[ tempIndex ];
+						}
+						else
+						{
+							return null;
+						}
+					}
+					else
+					{
+						tempObject = tempObject.GetType().GetField( tempPaths[i], Utility.InstanceFlags ).GetValue( tempObject );
+					}
+					
+					Publisher tempPublisher = tempObject as Publisher;
+					if ( tempPublisher != null )
+					{
+						return tempPublisher;
+					}
+				}
 			}
 			
 			return null;
 		}
 		
 		//=======================
-		// Draw
+		// Namespaces
 		//=======================
-		/// <summary>Draws a toggle field</summary>
-		/// <param name="tRect">Inspector display rectangle</param>
-		/// <param name="tToggle">SerializedProperty of the toggle input</param>
-		/// <returns>True if <paramref name="tToggle"/> changed</returns>
-		public static bool DrawToggle( Rect tRect, SerializedProperty tToggle )
+		/// <summary>Returns a list of all assembly <see cref="Namespace"/>s that contain <see cref="UnityEngine.Object"/> classes</summary>
+		/// <returns>List of namespaces</returns>
+		public static List<Namespace> GetUnityObjectNamespaces()
 		{
-			if ( tToggle != null )
+			// Generate
+			List<Type> tempClasses;
+			Dictionary<string,List<Type>> tempNamespaces = null;
+			Assembly[] tempAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+			for ( int i = ( tempAssemblies.Length - 1 ); i >= 0; --i )
 			{
-				bool tempIsDynamic = EditorGUI.Toggle( tRect, tToggle.displayName, tToggle.boolValue );
-				if ( tempIsDynamic != tToggle.boolValue )
+				if ( tempAssemblies[i].FullName.IndexOf( "UnityEditor" ) < 0 )
 				{
-					tToggle.boolValue = tempIsDynamic;
-					return true;
+					Type[] tempTypes = tempAssemblies[i].GetTypes();
+					Type tempType;
+					for ( int j = ( tempTypes.Length - 1 ); j >= 0; --j )
+					{
+						tempType = tempTypes[j];
+						if ( tempType == typeof( UnityEngine.Object ) || tempType.IsSubclassOf( typeof( UnityEngine.Object ) ) )
+						{
+							bool tempIsNamespace = tempType.Namespace != null;
+							if ( !tempIsNamespace || tempType.Namespace.IndexOf( "UnityEditor" ) < 0 )
+							{
+								string tempNamespace = tempIsNamespace ? tempType.Namespace : "NONE";
+								if ( tempNamespaces == null )
+								{
+									tempNamespaces = new Dictionary<string,List<Type>>();
+									tempClasses = new List<Type>();
+									tempClasses.Add( tempType );
+									tempNamespaces.Add( tempNamespace, tempClasses );
+								}
+								else if ( tempNamespaces.TryGetValue( tempNamespace, out tempClasses ) )
+								{
+									tempClasses.Add( tempType );
+								}
+								else
+								{
+									tempClasses = new List<Type>();
+									tempClasses.Add( tempType );
+									tempNamespaces.Add( tempNamespace, tempClasses );
+								}
+							}
+						}
+					}
 				}
 			}
 			
-			return false;
+			// Compile and order
+			tempClasses = new List<Type>();
+			tempClasses.Add( typeof( object ) );
+			List<Namespace> tempOut = new List<Namespace>();
+			tempOut.Add( new Namespace( "System", tempClasses ) );
+			
+			if ( tempNamespaces != null )
+			{
+				foreach ( KeyValuePair<string,List<Type>> tempPair in tempNamespaces )
+				{
+					tempPair.Value.Sort( ( tA, tB ) => string.Compare( tA.Name, tB.Name ) );
+					tempOut.Add( new Namespace( tempPair.Key, tempPair.Value ) );
+				}
+				
+				tempOut.Sort( ( tA, tB ) => string.Compare( tA.name, tB.name ) );
+			}
+			
+			return tempOut;
 		}
 		
-		/// <summary>Draws a target field that behaves as a basic object field if null, or a component drop-down if not</summary>
-		/// <param name="tRect">Inspector display rectangle</param>
-		/// <param name="tTarget">SerializedProperty of the object input</param>
-		/// <param name="tTargetNames">Cached <paramref name="tTarget"/> display names for the drop-down</param>
-		/// <param name="tTargetObjects">Cached <paramref name="tTarget"/> references for the drop-down</param>
-		/// <param name="tSelected">Selected index of the <paramref name="tTarget"/> determined by the drop-down</param>
-		/// <returns>True if <paramref name="tTarget"/> changed</returns>
-		public static bool DrawTargetField( Rect tRect, SerializedProperty tTarget, string[] tTargetNames, UnityEngine.Object[] tTargetObjects, ref int tSelected )
+		//=======================
+		// Members
+		//=======================
+		/// <summary>Returns a list of all <see cref="IMember"/>s belonging to the <paramref name="tType"/></summary>
+		/// <param name="tType">Type to search</param>
+		/// <param name="tIsFiltered">If true, will attempt to filter members defined in the <see cref="Settings"/></param>
+		/// <returns>List of members</returns>
+		public static List<IMember> GetMemberList( this Type tType, bool tIsFiltered = true )
 		{
-			if ( tTarget != null && tTarget.propertyType == SerializedPropertyType.ObjectReference )
+			if ( tType != null )
 			{
-				// Object field
-				UnityEngine.Object tempSelected = null;
-				if ( tTarget.objectReferenceValue == null )
+				List<IMember> tempMembers = null;
+				
+				// Fields
+				List<MemberField> tempFields = tType.GetFieldList( tIsFiltered );
+				if ( tempFields != null )
 				{
-					tempSelected = EditorGUI.ObjectField( tRect, tTarget.displayName, tTarget.objectReferenceValue, typeof( UnityEngine.Object ), true );
-				}
-				// Dropdown
-				else if ( tTargetNames != null && tTargetObjects != null )
-				{
-					if ( tTarget.objectReferenceValue != tTargetObjects[ tSelected ] ) // fix undo issue by recalculating the selected
+					if ( tempMembers == null )
 					{
-						for ( int i = ( tTargetObjects.Length - 1 ); i >= 0; --i )
+						tempMembers = new List<IMember>();
+					}
+					
+					int tempListLength = tempFields.Count;
+					for ( int i = 0; i < tempListLength; ++i )
+					{
+						tempMembers.Add( tempFields[i] );
+					}
+				}
+				
+				// Properties
+				List<MemberProperty> tempProperties = tType.GetPropertyList( tIsFiltered );
+				if ( tempProperties != null )
+				{
+					if ( tempMembers == null )
+					{
+						tempMembers = new List<IMember>();
+					}
+					
+					int tempListLength = tempProperties.Count;
+					for ( int i = 0; i < tempListLength; ++i )
+					{
+						tempMembers.Add( tempProperties[i] );
+					}
+				}
+				
+				// Methods
+				List<MemberMethod> tempMethods = tType.GetMethodList( tIsFiltered );
+				if ( tempMethods != null )
+				{
+					if ( tempMembers == null )
+					{
+						tempMembers = new List<IMember>();
+					}
+					
+					int tempListLength = tempMethods.Count;
+					for ( int i = 0; i < tempListLength; ++i )
+					{
+						tempMembers.Add( tempMethods[i] );
+					}
+				}
+				
+				return tempMembers;
+			}
+			
+			return null;
+		}
+		
+		/// <summary>Returns a list of all <see cref="MemberField"/>s belonging to the <paramref name="tType"/></summary>
+		/// <param name="tType">Type to search</param>
+		/// <param name="tIsFiltered">If true, will attempt to filter fields defined in the <see cref="Settings"/></param>
+		/// <returns>List of fields</returns>
+		public static List<MemberField> GetFieldList( this Type tType, bool tIsFiltered = true )
+		{
+			if ( tType != null )
+			{
+				// Flags
+				BindingFlags tempFlags = BindingFlags.Public | BindingFlags.Instance;
+				if ( Settings.instance.isPrivateDisplayed )
+				{
+					tempFlags |= BindingFlags.NonPublic;
+				}
+				
+				// Filter member fields
+				FieldInfo[] tempFields = tType.GetFields( tempFlags );
+				int tempListLength = tempFields.Length;
+				if ( tempListLength > 0 )
+				{
+					List<MemberField> tempOut = null;
+					FieldInfo tempField;
+					for ( int i = 0; i < tempListLength; ++i )
+					{
+						tempField = tempFields[i];
+						if ( !tempField.IsInitOnly && !tempField.IsLiteral )
 						{
-							if ( tTargetObjects[i] == tTarget.objectReferenceValue )
+							MemberField tempMember = new MemberField( tempField ); 
+							if ( !tIsFiltered || !Settings.instance.isMemberFiltered( tempField.DeclaringType, tempField.ReflectedType, tempMember ) )
 							{
-								tSelected = i;
-								return true;
+								if ( tempOut == null )
+								{
+									tempOut = new List<MemberField>();
+								}
+								
+								tempOut.Add( tempMember );
 							}
 						}
 					}
 					
-					tSelected = EditorGUI.Popup( tRect, tSelected, tTargetNames );
-					tempSelected = tTargetObjects[ tSelected ];
-				}
-				// Null
-				else
-				{
-					tSelected = -1;
-				}
-				
-				// Apply
-				if ( tempSelected != tTarget.objectReferenceValue )
-				{
-					tTarget.objectReferenceValue = tempSelected;
-					return true;
-				}
-			}
-			
-			return false;
-		}
-		
-		/// <summary>Draws a method drop-down field</summary>
-		/// <param name="tRect">Inspector display rectangle</param>
-		/// <param name="tMethod">SerializedProperty of the method input</param>
-		/// <param name="tMethodDisplayNames">Cached <paramref name="tMethod"/> display names for the drop-down</param>
-		/// <param name="tSelected">Selected index of the <paramref name="tMethod"/> determined by the drop-down</param>
-		/// <returns>True if <paramref name="tMethod"/> changed</returns>
-		public static bool DrawMethodPopup( Rect tRect, SerializedProperty tMethod, string[] tMethodDisplayNames, ref int tSelected )
-		{
-			if ( tMethod != null && tMethod.propertyType == SerializedPropertyType.String && tMethodDisplayNames != null )
-			{
-				// Dropdown
-				if ( tMethod.stringValue != tMethodDisplayNames[ tSelected ] ) // fix undo issue by recalculating the selected
-				{
-					for ( int i = ( tMethodDisplayNames.Length - 1 ); i >= 0; --i )
-					{
-						if ( tMethodDisplayNames[i] == tMethod.stringValue )
-						{
-							tSelected = i;
-							return true;
-						}
-					}
-				}
-				
-				tSelected = EditorGUI.Popup( tRect, tSelected, tMethodDisplayNames );
-				
-				// Apply
-				if ( tMethodDisplayNames[ tSelected ] != tMethod.stringValue )
-				{
-					tMethod.stringValue = tMethodDisplayNames[ tSelected ];
-					return true;
-				}
-			}
-			
-			return false;
-		}
-		
-		/// <summary>Draws a method drop-down field</summary>
-		/// <param name="tRect">Inspector display rectangle</param>
-		/// <param name="tMethod">SerializedProperty of the method input</param>
-		/// <param name="tMethodReflectionNames">Cached <paramref name="tMethod"/> reflection data for the drop-down</param>
-		/// <param name="tMethodDisplayNames">Cached <paramref name="tMethod"/> display names for the drop-down</param>
-		/// <param name="tSelected">Selected index of the <paramref name="tMethod"/> determined by the drop-down</param>
-		/// <returns>True if <paramref name="tMethod"/> changed</returns>
-		public static bool DrawMethodPopup( Rect tRect, SerializedProperty tMethod, string[] tMethodReflectionNames, string[] tMethodDisplayNames, ref int tSelected )
-		{
-			if ( tMethod != null && tMethod.propertyType == SerializedPropertyType.String && tMethodReflectionNames != null && tMethodDisplayNames != null && tMethodReflectionNames.Length == tMethodDisplayNames.Length )
-			{
-				// Dropdown
-				if ( tMethod.stringValue != tMethodReflectionNames[ tSelected ] ) // fix undo issue by recalculating the selected
-				{
-					for ( int i = ( tMethodReflectionNames.Length - 1 ); i >= 0; --i )
-					{
-						if ( tMethodReflectionNames[i] == tMethod.stringValue )
-						{
-							tSelected = i;
-							return true;
-						}
-					}
-				}
-				
-				tSelected = EditorGUI.Popup( tRect, tSelected, tMethodDisplayNames );
-				
-				// Apply
-				if ( tMethodReflectionNames[ tSelected ] != tMethod.stringValue )
-				{
-					tMethod.stringValue = tMethodReflectionNames[ tSelected ];
-					return true;
-				}
-			}
-			
-			return false;
-		}
-		
-		/// <summary>Returns an adjusted line-height for the inspector that includes proper vertical spacing</summary>
-		public static float singleLineHeight
-		{
-			get
-			{
-				return EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
-			}
-		}
-		
-		//=======================
-		// Display Names
-		//=======================
-		/// <summary>Returns a more readable and formatted display name for a method/property/variable</summary>
-		/// <param name="tReturnType">Return type for a method, or the actual type of property/variable</param>
-		/// <param name="tName">Name of the method/property/variable</param>
-		/// <param name="tParameters">Optional array of parameter types for a method</param>
-		/// <param name="tIsProperty">Optional boolean to indicate if should be displayed as a property</param>
-		/// <returns>Formatted display name of the method/property/variable</returns>
-		public static string GetDisplayName( Type tReturnType, string tName, Type[] tParameters = null, bool tIsProperty = false )
-		{
-			// Property
-			StringBuilder tempName = new StringBuilder();
-			if ( tIsProperty )
-			{
-				tempName.Append( "set " );
-			}
-			
-			// Return type
-			if ( tReturnType != null )
-			{
-				tempName.Append( GetTypeKeyword( tReturnType ) );
-				tempName.Append( " " );
-			}
-			
-			// Name
-			tempName.Append( tName );
-			
-			// Parameter types
-			if ( tParameters != null )
-			{
-				tempName.Append( "(" );
-				int tempListLength = tParameters.Length;
-				for ( int i = 0; i < tempListLength; ++i )
-				{
-					tempName.Append( " " );
-					tempName.Append( GetTypeKeyword( tParameters[i] ) );
-					
-					if ( i < ( tempListLength - 1 ) )
-					{
-						tempName.Append( "," );
-					}
-				}
-				tempName.Append( " )" );
-			}
-			
-			return tempName.ToString();
-		}
-		
-		/// <summary>Converts a type into its short-hand keyword</summary>
-		/// <param name="tType">Type to convert</param>
-		/// <returns>Keyword if successfully read, null if not</returns>
-		public static string GetTypeKeyword( Type tType )
-		{
-			if ( tType == typeof( void ) )
-			{
-				return "void";
-			}
-			else if ( tType == typeof( System.Delegate ) )
-			{
-				return "delegate";
-			}
-			else if ( tType == typeof( System.Enum ) )
-			{
-				return "enum";
-			}
-			else
-			{
-				switch ( Type.GetTypeCode( tType ) )
-				{
-					case TypeCode.Boolean:
-						return "bool";
-					case TypeCode.Byte:
-						return "byte";
-					case TypeCode.Char:
-						return "char";
-					case TypeCode.Decimal:
-						return "decimal";
-					case TypeCode.Double:
-						return "double";
-					case TypeCode.Int16:
-						return "short";
-					case TypeCode.Int32:
-						return "int";
-					case TypeCode.Int64:
-						return "long";
-					case TypeCode.Object:
-						if ( tType == typeof( object ) )
-						{
-							return "object";
-						}
-						
-						return tType.Name;
-					case TypeCode.SByte:
-						return "sbyte";
-					case TypeCode.Single:
-						return "float";
-					case TypeCode.String:
-						return "string";
-					case TypeCode.UInt16:
-						return "ushort";
-					case TypeCode.UInt32:
-						return "uint";
-					case TypeCode.UInt64:
-						return "ulong";
+					return tempOut;
 				}
 			}
 			
 			return null;
+		}
+		
+		/// <summary>Returns a list of all <see cref="MemberProperty"/>s belonging to the <paramref name="tType"/></summary>
+		/// <param name="tType">Type to search</param>
+		/// <param name="tIsFiltered">If true, will attempt to filter properties defined in the <see cref="Settings"/></param>
+		/// <returns>List of properties</returns>
+		public static List<MemberProperty> GetPropertyList( this Type tType, bool tIsFiltered = true )
+		{
+			if ( tType != null )
+			{
+				// Flags
+				BindingFlags tempFlags = BindingFlags.Public | BindingFlags.Instance;
+				if ( Settings.instance.isPrivateDisplayed )
+				{
+					tempFlags |= BindingFlags.NonPublic;
+				}
+				
+				// Filter member properties
+				PropertyInfo[] tempProperties = tType.GetProperties( tempFlags );
+				int tempListLength = tempProperties.Length;
+				if ( tempListLength > 0 )
+				{
+					List<MemberProperty> tempOut = null;
+					PropertyInfo tempProperty;
+					for ( int i = 0; i < tempListLength; ++i )
+					{
+						tempProperty = tempProperties[i];
+						if ( tempProperty.CanWrite )
+						{
+							MemberProperty tempMember = new MemberProperty( tempProperty ); 
+							if ( !tIsFiltered || !Settings.instance.isMemberFiltered( tempProperty.DeclaringType, tempProperty.ReflectedType, tempMember ) )
+							{
+								if ( tempOut == null )
+								{
+									tempOut = new List<MemberProperty>();
+								}
+								
+								tempOut.Add( tempMember );
+							}
+						}
+					}
+					
+					return tempOut;
+				}
+			}
+			
+			return null;
+		}
+		
+		/// <summary>Returns a list of all <see cref="MemberMethod"/>s belonging to the <paramref name="tType"/></summary>
+		/// <param name="tType">Type to search</param>
+		/// <param name="tIsFiltered">If true, will attempt to filter methods defined in the <see cref="Settings"/></param>
+		/// <returns>List of methods</returns>
+		public static List<MemberMethod> GetMethodList( this Type tType, bool tIsFiltered = true )
+		{
+			if ( tType != null )
+			{
+				// Flags
+				BindingFlags tempFlags = BindingFlags.Public | BindingFlags.Instance;
+				if ( Settings.instance.isPrivateDisplayed )
+				{
+					tempFlags |= BindingFlags.NonPublic;
+				}
+				
+				// Filter member methods
+				MethodInfo[] tempMethods = tType.GetMethods( tempFlags );
+				int tempListLength = tempMethods.Length;
+				if ( tempListLength > 0 )
+				{
+					List<MemberMethod> tempOut = null;
+					MethodInfo tempMethod;
+					for ( int i = 0; i < tempListLength; ++i )
+					{
+						tempMethod = tempMethods[i];
+						if ( !tempMethod.IsSpecialName && !tempMethod.IsGenericMethod )
+						{
+							MemberMethod tempMember = new MemberMethod( tempMethod ); 
+							if ( !tIsFiltered || !Settings.instance.isMemberFiltered( tempMethod.DeclaringType, tempMethod.ReflectedType, tempMember ) )
+							{
+								if ( tempOut == null )
+								{
+									tempOut = new List<MemberMethod>();
+								}
+								
+								tempOut.Add( tempMember );
+							}
+						}
+					}
+					
+					return tempOut;
+				}
+			}
+			
+			return null;
+		}
+		
+		//=======================
+		// Inspector
+		//=======================
+		/// <summary>Gets the width of Unity's indents in the inspector</summary>
+		public static float IndentSize
+		{
+			get
+			{
+				return 15;
+			}
 		}
 	}
 }

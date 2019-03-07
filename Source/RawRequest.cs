@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Reflection;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace EventsPlus
@@ -8,50 +7,22 @@ namespace EventsPlus
 	//##########################
 	// Class Declaration
 	//##########################
-	/// <summary>Serializable reflection data that gets converted into a Request by a Subscriber</summary>
+	/// <summary>Serialized form of a delegate that can be wired up from a <see cref="Subscriber"/></summary>
 	[Serializable]
-	public class RawRequest : IRawRequest
+	public class RawRequest : RawDelegate
 	{
 		//=======================
 		// Variables
 		//=======================
-		/// <summary>Target object containing the target method</summary>
+		/// <summary>Tag keys used for hooking up to matching <see cref="Publisher"/>s</summary>
 		[SerializeField]
-		protected UnityEngine.Object _target;
-		/// <summary>Method description belonging to the target</summary>
-		[SerializeField]
-		protected string _targetMethod;
-		/// <summary>List of tags that will be used when matching to potential Publishers</summary>
-		[SerializeField]
-		protected List<string> _tags;
-	
-		//=======================
-		// Constructor
-		//=======================
-		public RawRequest()
-		{
-		}
+		protected string[] _tags = new string[1]; // must always be at least one tag
 		
 		//=======================
-		// Accessors
+		// Tags
 		//=======================
-		public virtual UnityEngine.Object target
-		{
-			get
-			{
-				return _target;
-			}
-		}
-		
-		public virtual string targetMethod
-		{
-			get
-			{
-				return _targetMethod;
-			}
-		}
-		
-		public virtual List<string> tags
+		/// <summary>Gets the <see cref="_tags"/> array</summary>
+		public string[] tags
 		{
 			get
 			{
@@ -60,116 +31,191 @@ namespace EventsPlus
 		}
 		
 		//=======================
-		// Request
+		// Delegate
 		//=======================
-		/// <summary>Tries to create and register a Request from this raw form</summary>
-		/// <param name="tSubscriber">Subscriber instance to associate the Request with</param>
-		/// <returns>True if successfully created and added to the <paramref name="tSubscriber"/></returns>
-		public virtual bool createAndRegister( ISubscriber tSubscriber )
+		public override System.Delegate createDelegate( MemberInfo tMember )
 		{
-			if ( tSubscriber != null )
+			// Func wrapping
+			if ( tMember != null && tMember.MemberType == MemberTypes.Method )
 			{
-				return tSubscriber.addRequest( createRequest( tSubscriber ) );
-			}
-			
-			return false;
-		}
-		
-		/// <summary>Tries to create a Request from this raw form</summary>
-		/// <param name="tSubscriber">Subscriber instance to associate the Request with</param>
-		/// <returns>Request instance if successful, null if not</returns>
-		public virtual IRequest createRequest( ISubscriber tSubscriber )
-		{
-			if ( tSubscriber != null && _target != null && _tags != null && _tags.Count > 0 )
-			{
-				InfoType tempType;
-				string tempName;
-				Type[] tempTypes;
-				if ( Utility.ReadReflectionData( _targetMethod, out tempType, out tempName, out tempTypes ) )
+				MethodInfo tempMethod = tMember as MethodInfo;
+				if ( tempMethod.ReturnType != typeof( void ) )
 				{
-					switch ( tempType )
+					// Parameters
+					ParameterInfo[] tempParameters = tempMethod.GetParameters();
+					int tempParametersLength = tempParameters.Length;
+					Type[] tempParameterTypes = new Type[ tempParametersLength + 1 ];
+					for ( int i = ( tempParametersLength - 1 ); i >= 0; --i )
 					{
-						case InfoType.Field:
-							return createRequest( tSubscriber, _target.GetType().GetField( tempName ) );
-						case InfoType.Property:
-							return createRequest( tSubscriber, _target.GetType().GetProperty( tempName ) );
-						case InfoType.Method:
-							return createRequest( tSubscriber, _target.GetType().GetMethod( tempName, tempTypes ), tempTypes );
-						default:
-							break;
+						tempParameterTypes[i] = tempParameters[i].ParameterType;
 					}
+					
+					tempParameterTypes[ tempParametersLength ] = tempMethod.ReturnType;
+					
+					// Delegate
+					return this.GetType().GetMethod( "createFunc" + tempParametersLength, Utility.InstanceFlags ).MakeGenericMethod( tempParameterTypes ).Invoke( this, new object[] { tempMethod } ) as System.Delegate;
 				}
 			}
-			
-			return null;
+
+			// Inheritance
+			return base.createDelegate( tMember );
 		}
 		
-		/// <summary>Tries to create a Request from this raw form that targets a variable</summary>
-		/// <param name="tSubscriber">Subscriber instance to associate the Request with</param>
-		/// <param name="tFieldInfo">FieldInfo of the target variable</param>
-		/// <returns>Request instance if successful, null if not</returns>
-		protected virtual IRequest createRequest( ISubscriber tSubscriber, FieldInfo tFieldInfo )
+		//=======================
+		// Func
+		//=======================
+		/// <summary>Utility method for creating a method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action createFunc0<T>( MethodInfo tMethod )
 		{
-			System.Delegate tempDelegate = Utility.CreateDelegate( _target, tFieldInfo );
-			if ( tempDelegate != null )
+			Func<T> tempDelegate = Delegate.CreateDelegate( typeof( Func<T> ), _target, tMethod, false ) as Func<T>;
+			Action tempAction = () =>
 			{
-				return Activator.CreateInstance( typeof( Request<> ).MakeGenericType( new Type[] { tFieldInfo.FieldType } ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-			}
+				tempDelegate();
+			};
 			
-			return null;
+			return tempAction;
 		}
 		
-		/// <summary>Tries to create a Request from this raw form that targets a property</summary>
-		/// <param name="tSubscriber">Subscriber instance to associate the Request with</param>
-		/// <param name="tPropertyInfo">PropertyInfo of the target property</param>
-		/// <returns>Request instance if successful, null if not</returns>
-		protected virtual IRequest createRequest( ISubscriber tSubscriber, PropertyInfo tPropertyInfo )
+		/// <summary>Utility method for creating a 1-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A> createFunc1<A,T>( MethodInfo tMethod )
 		{
-			System.Delegate tempDelegate = Utility.CreateDelegate( _target, tPropertyInfo );
-			if ( tempDelegate != null )
+			Func<A,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,T> ), _target, tMethod, false ) as Func<A,T>;
+			Action<A> tempAction = ( A tA ) =>
 			{
-				return Activator.CreateInstance( typeof( Request<> ).MakeGenericType( new Type[] { tPropertyInfo.PropertyType } ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-			}
+				tempDelegate( tA );
+			};
 			
-			return null;
+			return tempAction;
 		}
 		
-		/// <summary>Tries to create a Request from this raw form that targets a method</summary>
-		/// <param name="tSubscriber">Subscriber instance to associate the Request with</param>
-		/// <param name="tMethodInfo">MethodInfo of the target method</param>
-		/// <param name="tParameterTypes">Parameter types of the target method</param>
-		/// <returns>Request instance if successful, null if not</returns>
-		protected virtual IRequest createRequest( ISubscriber tSubscriber, MethodInfo tMethodInfo, Type[] tParameterTypes )
+		/// <summary>Utility method for creating a 2-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B> createFunc2<A,B,T>( MethodInfo tMethod )
 		{
-			int tempListLength = tParameterTypes == null ? 0 : tParameterTypes.Length;
-			if ( tempListLength <= 6 )
+			Func<A,B,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,T> ), _target, tMethod, false ) as Func<A,B,T>;
+			Action<A,B> tempAction = ( A tA, B tB ) =>
 			{
-				System.Delegate tempDelegate = Utility.CreateDelegate( _target, tMethodInfo, tParameterTypes, Utility.CreateActionDelegate, Utility.CreateFuncDelegate );
-				if ( tempDelegate != null )
-				{
-					switch ( tempListLength )
-					{
-						case 0:
-							return Activator.CreateInstance( typeof( Request ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-						case 1:
-							return Activator.CreateInstance( typeof( Request<> ).MakeGenericType( tParameterTypes ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-						case 2:
-							return Activator.CreateInstance( typeof( Request<,> ).MakeGenericType( tParameterTypes ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-						case 3:
-							return Activator.CreateInstance( typeof( Request<,,> ).MakeGenericType( tParameterTypes ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-						case 4:
-							return Activator.CreateInstance( typeof( Request<,,,> ).MakeGenericType( tParameterTypes ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-						case 5:
-							return Activator.CreateInstance( typeof( Request<,,,,> ).MakeGenericType( tParameterTypes ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-						case 6:
-							return Activator.CreateInstance( typeof( Request<,,,,,> ).MakeGenericType( tParameterTypes ), new object[] { tSubscriber, _tags, tempDelegate } ) as IRequest;
-						default:
-							break;
-					}
-				}
-			}
+				tempDelegate( tA, tB );
+			};
 			
-			return null;
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 3-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C> createFunc3<A,B,C,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,T> ), _target, tMethod, false ) as Func<A,B,C,T>;
+			Action<A,B,C> tempAction = ( A tA, B tB, C tC ) =>
+			{
+				tempDelegate( tA, tB, tC );
+			};
+			
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 4-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C,D> createFunc4<A,B,C,D,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,D,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,D,T> ), _target, tMethod, false ) as Func<A,B,C,D,T>;
+			Action<A,B,C,D> tempAction = ( A tA, B tB, C tC, D tD ) =>
+			{
+				tempDelegate( tA, tB, tC, tD );
+			};
+			
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 5-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C,D,E> createFunc5<A,B,C,D,E,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,D,E,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,D,E,T> ), _target, tMethod, false ) as Func<A,B,C,D,E,T>;
+			Action<A,B,C,D,E> tempAction = ( A tA, B tB, C tC, D tD, E tE ) =>
+			{
+				tempDelegate( tA, tB, tC, tD, tE );
+			};
+			
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 6-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C,D,E,F> createFunc6<A,B,C,D,E,F,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,D,E,F,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,D,E,F,T> ), _target, tMethod, false ) as Func<A,B,C,D,E,F,T>;
+			Action<A,B,C,D,E,F> tempAction = ( A tA, B tB, C tC, D tD, E tE, F tF ) =>
+			{
+				tempDelegate( tA, tB, tC, tD, tE, tF );
+			};
+			
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 7-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C,D,E,F,G> createFunc7<A,B,C,D,E,F,G,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,D,E,F,G,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,D,E,F,G,T> ), _target, tMethod, false ) as Func<A,B,C,D,E,F,G,T>;
+			Action<A,B,C,D,E,F,G> tempAction = ( A tA, B tB, C tC, D tD, E tE, F tF, G tG ) =>
+			{
+				tempDelegate( tA, tB, tC, tD, tE, tF, tG );
+			};
+			
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 8-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C,D,E,F,G,H> createFunc8<A,B,C,D,E,F,G,H,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,D,E,F,G,H,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,D,E,F,G,H,T> ), _target, tMethod, false ) as Func<A,B,C,D,E,F,G,H,T>;
+			Action<A,B,C,D,E,F,G,H> tempAction = ( A tA, B tB, C tC, D tD, E tE, F tF, G tG, H tH ) =>
+			{
+				tempDelegate( tA, tB, tC, tD, tE, tF, tG, tH );
+			};
+			
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 9-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C,D,E,F,G,H,I> createFunc9<A,B,C,D,E,F,G,H,I,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,D,E,F,G,H,I,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,D,E,F,G,H,I,T> ), _target, tMethod, false ) as Func<A,B,C,D,E,F,G,H,I,T>;
+			Action<A,B,C,D,E,F,G,H,I> tempAction = ( A tA, B tB, C tC, D tD, E tE, F tF, G tG, H tH, I tI ) =>
+			{
+				tempDelegate( tA, tB, tC, tD, tE, tF, tG, tH, tI );
+			};
+			
+			return tempAction;
+		}
+		
+		/// <summary>Utility method for creating a 10-parameter method delegate from a <see cref="System.Reflection.MethodInfo"/> that has a return value</summary>
+		/// <param name="tMethod">MethodInfo used to generate a delegate</param>
+		/// <returns>Generic action delegate if successful, null if not able to convert</returns>
+		protected virtual Action<A,B,C,D,E,F,G,H,I,J> createFunc10<A,B,C,D,E,F,G,H,I,J,T>( MethodInfo tMethod )
+		{
+			Func<A,B,C,D,E,F,G,H,I,J,T> tempDelegate = Delegate.CreateDelegate( typeof( Func<A,B,C,D,E,F,G,H,I,J,T> ), _target, tMethod, false ) as Func<A,B,C,D,E,F,G,H,I,J,T>;
+			Action<A,B,C,D,E,F,G,H,I,J> tempAction = ( A tA, B tB, C tC, D tD, E tE, F tF, G tG, H tH, I tI, J tJ ) =>
+			{
+				tempDelegate( tA, tB, tC, tD, tE, tF, tG, tH, tI, tJ );
+			};
+			
+			return tempAction;
 		}
 	}
 }

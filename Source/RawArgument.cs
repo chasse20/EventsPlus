@@ -43,17 +43,11 @@ namespace EventsPlus
 		public double doubleValue;
 		/// <summary>Animation curve</summary>
 		public AnimationCurve animationCurveValue;
-	
-		//=======================
-		// Constructor
-		//=======================
-		public RawArgument()
-		{
-		}
 		
 		//=======================
 		// Accessors
-		//=======================		
+		//=======================
+		/// <summary>Gets the generic value of the argument based on the <see cref="type"/></summary>
 		public virtual object genericValue
 		{
 			get
@@ -111,7 +105,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual bool boolValue
+		/// <summary>Gets the bool value of the argument</summary>
+		public bool boolValue
 		{
 			get
 			{
@@ -123,7 +118,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual int intValue
+		/// <summary>Gets the integer value of the argument</summary>
+		public int intValue
 		{
 			get
 			{
@@ -135,7 +131,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Enum enumValue
+		/// <summary>Gets the enumeration value of the argument</summary>
+		public Enum enumValue
 		{
 			get
 			{
@@ -153,7 +150,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual float floatValue
+		/// <summary>Gets the floating point value of the argument</summary>
+		public float floatValue
 		{
 			get
 			{
@@ -165,7 +163,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Vector2 vector2Value
+		/// <summary>Gets the Vector2 value of the argument</summary>
+		public Vector2 vector2Value
 		{
 			get
 			{
@@ -178,7 +177,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Vector3 vector3Value
+		/// <summary>Gets the Vector3 value of the argument</summary>
+		public Vector3 vector3Value
 		{
 			get
 			{
@@ -192,7 +192,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Vector4 vector4Value
+		/// <summary>Gets the Vector4 value of the argument</summary>
+		public Vector4 vector4Value
 		{
 			get
 			{
@@ -207,7 +208,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Quaternion quaternionValue
+		/// <summary>Gets the quaternion value of the argument</summary>
+		public Quaternion quaternionValue
 		{
 			get
 			{
@@ -222,7 +224,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Rect rectValue
+		/// <summary>Gets the Rect value of the argument</summary>
+		public Rect rectValue
 		{
 			get
 			{
@@ -237,7 +240,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Bounds boundsValue
+		/// <summary>Gets the Bounds value of the argument</summary>
+		public Bounds boundsValue
 		{
 			get
 			{
@@ -254,7 +258,8 @@ namespace EventsPlus
 			}
 		}
 		
-		public virtual Color colorValue
+		/// <summary>Gets the color value of the argument</summary>
+		public Color colorValue
 		{
 			get
 			{
