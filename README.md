@@ -2,8 +2,11 @@
 Unity Asset Store Plugin in C# (Sample Code)
 
 [Website](www.eventsplus.com)
+
 [Asset Store](https://assetstore.unity.com/packages/tools/utilities/events-plus-88827)
+
 [Documentation](http://www.eventsplusplugin.com/Documentation.pdf)
+
 [Online API](http://www.eventsplusplugin.com/API/)
 
 ## DESCRIPTION
