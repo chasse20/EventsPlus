@@ -1,5 +1,5 @@
 # EventsPlus
-Unity Asset Store Plugin in C# (Sample Code)
+Events Plus is a powerful event management tool for the Unity Engine. It has been designed as a complete replacement of the stock UnityEvent system and includes several added features and performance improvements. Like UnityEvents, Events Plus enables developers to avoid otherwise cumbersome event wiring and instead manage it all solely within the editor window.
 
 [Website](www.eventsplus.com)
 
@@ -9,10 +9,7 @@ Unity Asset Store Plugin in C# (Sample Code)
 
 [Online API](http://www.eventsplusplugin.com/API/)
 
-## DESCRIPTION
-Events Plus is a powerful delegate serializer for the Unity Engine designed to replace the stock UnityEvent system with several new features and significantly improved performance. Like UnityEvents, Events Plus enables developers to avoid otherwise hard-coded event hookups and instead manage it all within the inspector window.
-
-## FEATURES
+## CORE FEATURES
 - Automatic event wiring
 - Supports every Unity variable type (Vector3, AnimationCurve, etc.)
 - Allows up to 10 event arguments  Expandable and re-orderable inspector drawers
