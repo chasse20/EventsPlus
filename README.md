@@ -14,7 +14,8 @@ Events Plus is a powerful event management tool for the Unity Engine. It has bee
 ## CORE FEATURES
 - Automatic event wiring
 - Supports every Unity variable type (Vector3, AnimationCurve, etc.)
-- Allows up to 10 event arguments  Expandable and re-orderable inspector drawers
+- Allows up to 10 event arguments
+- Expandable and re-orderable inspector drawers
 - Optimized for cross-platform with up to 1000% faster speeds over stock UnityEvents
 - Supports both direct events and preconfigured argument calls to all public variables, properties and methods
 - Supports methods with return types and function overloading
