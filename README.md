@@ -1,7 +1,7 @@
 # EventsPlus
 Events Plus is a powerful event management tool for the Unity Engine. It has been designed as a complete replacement of the stock UnityEvent system and includes several added features and performance improvements. Like UnityEvents, Events Plus enables developers to avoid otherwise cumbersome event wiring and instead manage it all solely within the editor window.
 
-![Logo](EventsPlus_FB.png?raw=true)
+[<img alt="Logo" src="screenshots/EventsPlus_FB.png" height="300">](EventsPlus_FB.png?raw=true)
 
 [Website](http://www.eventsplusplugin.com)
 
